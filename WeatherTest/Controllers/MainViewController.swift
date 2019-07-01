@@ -99,41 +99,63 @@ class MainViewController: UIViewController, CLLocationManagerDelegate {
     }
     
     func locationAuthCheck(){
-        if CLLocationManager.authorizationStatus() == .authorizedWhenInUse {
-            // Get the location from device
-            guard locationManager.location != nil else { return print("Location is nil, you need configure location, go to Simulator -> Top menu -> 'Debug' -> 'Location'") }
+        switch CLLocationManager.authorizationStatus() {
+        case .authorizedWhenInUse, .authorizedAlways:
             
-            currentLocation = locationManager.location
+            downloadCurrentCityForecast()
             
-//            print(currentLocation.coordinate.latitude)
-//            print(currentLocation.coordinate.longitude)
-            
-            // Set coordinates to class "Location" and then pass the Location's coordinate to our API
-            Location.sharedIntance.longitude = currentLocation.coordinate.longitude
-            Location.sharedIntance.latitude = currentLocation.coordinate.latitude
-            
-            // GCD rule, update UI in main queue
-            DispatchQueue.main.async {
-                // Download the API Data
-                self.currentWeather.downloadCurrentWeather {
-                    //
-                    let currentCityWeather: Forecast = Forecast(city: self.currentWeather.cityName, temp: Int(self.currentWeather.currentTemp))
-                    if self.arrayOfForecasts.count == 0 {
-                                self.arrayOfForecasts.append(currentCityWeather)
-                                self.tableView.reloadData()
-                            
-                        }
-                
-                    print(self.arrayOfForecasts)
-            }
-        }
-        } else {
-            // If stasus not "authorizedWhenInUse", ask a permission, and recursive call self function
-            locationManager.requestWhenInUseAuthorization()
-            locationAuthCheck()
+        case .notDetermined:
+            locationManager(locationManager, didChangeAuthorization: .notDetermined)
+        case .denied, .restricted:
+            let alertContoller = UIAlertController(title: "Location settings", message: "You denied location permission", preferredStyle: .alert)
+            let OK = UIAlertAction(title: "OK", style: .cancel, handler: nil)
+            alertContoller.addAction(OK)
+            self.present(alertContoller, animated: true)
             
         }
     }
+    
+    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        switch status {
+        case .notDetermined:
+            break
+        case .denied, .restricted:
+            manager.requestWhenInUseAuthorization()
+            let alertContoller = UIAlertController(title: "Location settings", message: "You denied location permission", preferredStyle: .alert)
+            let OK = UIAlertAction(title: "OK", style: .cancel, handler: nil)
+            alertContoller.addAction(OK)
+            self.present(alertContoller, animated: true)
+        case .authorizedAlways, .authorizedWhenInUse:
+            downloadCurrentCityForecast()
+        }
+    }
+    
+    func downloadCurrentCityForecast(){
+        // Get the location from device
+        guard locationManager.location != nil else { return print("Location is nil, you need configure location, go to Simulator -> Top menu -> 'Debug' -> 'Location'") }
+        
+        currentLocation = locationManager.location
+        
+        // Set coordinates to class "Location" and then pass the Location's coordinate to our API
+        Location.sharedIntance.longitude = currentLocation.coordinate.longitude
+        Location.sharedIntance.latitude = currentLocation.coordinate.latitude
+        
+        // GCD rule, update UI in main queue
+        DispatchQueue.main.async {
+            
+            // Download the API Data
+            self.currentWeather.downloadCurrentWeather {
+        
+                let currentCityWeather: Forecast = Forecast(city: self.currentWeather.cityName, temp: Int(self.currentWeather.currentTemp))
+                if self.arrayOfForecasts.count == 0 {
+                    self.arrayOfForecasts.append(currentCityWeather)
+                    self.tableView.reloadData()
+                    
+                }
+            }
+        }
+    }
+    
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if segue.identifier == "detailSegue" {
             if let indexPath = tableView.indexPathForSelectedRow {
